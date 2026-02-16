@@ -10,7 +10,7 @@ kotlin = "2.0.21"
 composeBom = "2024.09.00"
 
 # Room
-room = "2.7.0-beta01"
+room = "2.8.4"
 
 # Hilt
 hilt = "2.51"
