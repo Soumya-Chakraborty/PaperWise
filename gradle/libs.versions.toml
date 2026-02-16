@@ -23,7 +23,7 @@ navigationCompose = "2.8.5"
 coroutines = "1.8.0"
 
 # MuPDF
-mupdf = "1.17.0"
+mupdf = "1.27.1"
 
 # Accompanist (for permissions)
 accompanist = "0.34.0"
