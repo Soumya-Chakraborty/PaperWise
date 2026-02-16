@@ -26,7 +26,7 @@ coroutines = "1.8.0"
 mupdf = "1.17.0"
 
 # Accompanist (for permissions)
-accompanist = "0.34.0"
+accompanist = "0.37.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
