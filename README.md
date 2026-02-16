@@ -88,6 +88,11 @@ Pipeline stages:
 2. Release build (`assembleRelease`)
 3. Artifact upload (lint/test reports + APK + mapping files)
 
+## Automated Code Review
+- CodeRabbit is configured via `.coderabbit.yaml` for production-grade PR review.
+- Auto-review is enabled for non-draft PRs and includes secret checks (`gitleaks`) and GitHub checks integration.
+- To activate, install/enable the CodeRabbit GitHub App for this repository.
+
 ## Repository Standards
 - Contribution guide: `CONTRIBUTING.md`
 - Security reporting: `SECURITY.md`

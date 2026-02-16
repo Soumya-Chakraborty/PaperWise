@@ -23,6 +23,9 @@ data class SearchResult(
 class PdfSearchEngine @Inject constructor(
     private val pdfRenderer: PdfRenderer
 ) {
+    companion object {
+        private const val MAX_SEARCH_RESULTS = 5_000
+    }
     
     /**
      * Search for a query string in the current document.
@@ -34,34 +37,33 @@ class PdfSearchEngine @Inject constructor(
         query: String,
         caseSensitive: Boolean = false
     ): List<SearchResult> = withContext(Dispatchers.IO) {
-        if (query.isBlank() || !pdfRenderer.isDocumentOpen()) {
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isBlank() || !pdfRenderer.isDocumentOpen()) {
             return@withContext emptyList()
         }
         
         val results = mutableListOf<SearchResult>()
         val pageCount = pdfRenderer.getPageCount()
-        val searchQuery = if (caseSensitive) query else query.lowercase()
         
         for (pageNumber in 0 until pageCount) {
             val pageText = pdfRenderer.extractPageText(pageNumber)
-            val searchText = if (caseSensitive) pageText else pageText.lowercase()
-            
-            // Find all occurrences in this page
-            var startIndex = 0
-            while (startIndex < searchText.length) {
-                val index = searchText.indexOf(searchQuery, startIndex)
-                if (index == -1) break
-                
+            val pageMatches = SearchTextMatcher.findMatches(
+                pageText = pageText,
+                query = normalizedQuery,
+                caseSensitive = caseSensitive
+            )
+            for (match in pageMatches) {
                 results.add(
                     SearchResult(
                         pageNumber = pageNumber,
-                        matchText = pageText.substring(index, index + query.length),
-                        startIndex = index,
-                        endIndex = index + query.length
+                        matchText = match.matchText,
+                        startIndex = match.startIndex,
+                        endIndex = match.endIndex
                     )
                 )
-                
-                startIndex = index + 1
+                if (results.size >= MAX_SEARCH_RESULTS) {
+                    return@withContext results
+                }
             }
         }
         
@@ -77,39 +79,73 @@ class PdfSearchEngine @Inject constructor(
         endPage: Int,
         caseSensitive: Boolean = false
     ): List<SearchResult> = withContext(Dispatchers.IO) {
-        if (query.isBlank() || !pdfRenderer.isDocumentOpen()) {
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isBlank() || !pdfRenderer.isDocumentOpen()) {
             return@withContext emptyList()
         }
         
         val results = mutableListOf<SearchResult>()
         val pageCount = pdfRenderer.getPageCount()
-        val searchQuery = if (caseSensitive) query else query.lowercase()
         
         val start = startPage.coerceAtLeast(0)
         val end = endPage.coerceAtMost(pageCount - 1)
+        if (start > end) return@withContext emptyList()
         
         for (pageNumber in start..end) {
             val pageText = pdfRenderer.extractPageText(pageNumber)
-            val searchText = if (caseSensitive) pageText else pageText.lowercase()
-            
-            var startIndex = 0
-            while (startIndex < searchText.length) {
-                val index = searchText.indexOf(searchQuery, startIndex)
-                if (index == -1) break
-                
+            val pageMatches = SearchTextMatcher.findMatches(
+                pageText = pageText,
+                query = normalizedQuery,
+                caseSensitive = caseSensitive
+            )
+            for (match in pageMatches) {
                 results.add(
                     SearchResult(
                         pageNumber = pageNumber,
-                        matchText = pageText.substring(index, index + query.length),
-                        startIndex = index,
-                        endIndex = index + query.length
+                        matchText = match.matchText,
+                        startIndex = match.startIndex,
+                        endIndex = match.endIndex
                     )
                 )
-                
-                startIndex = index + 1
+                if (results.size >= MAX_SEARCH_RESULTS) {
+                    return@withContext results
+                }
             }
         }
         
         results
+    }
+}
+
+internal object SearchTextMatcher {
+    internal data class Match(
+        val matchText: String,
+        val startIndex: Int,
+        val endIndex: Int
+    )
+
+    fun findMatches(pageText: String, query: String, caseSensitive: Boolean): List<Match> {
+        if (pageText.isEmpty() || query.isEmpty()) return emptyList()
+
+        val searchText = if (caseSensitive) pageText else pageText.lowercase()
+        val searchQuery = if (caseSensitive) query else query.lowercase()
+        val matches = mutableListOf<Match>()
+
+        var startIndex = 0
+        while (startIndex < searchText.length) {
+            val index = searchText.indexOf(searchQuery, startIndex)
+            if (index == -1) break
+
+            matches.add(
+                Match(
+                    matchText = pageText.substring(index, index + query.length),
+                    startIndex = index,
+                    endIndex = index + query.length
+                )
+            )
+            startIndex = index + 1
+        }
+
+        return matches
     }
 }

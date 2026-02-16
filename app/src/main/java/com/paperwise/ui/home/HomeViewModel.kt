@@ -8,6 +8,7 @@ import com.paperwise.utils.FileScanner
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +26,10 @@ class HomeViewModel @Inject constructor(
     private val pdfRepository: PdfRepository,
     private val fileScanner: FileScanner
 ) : ViewModel() {
+    companion object {
+        private const val SEARCH_DEBOUNCE_MS = 250L
+    }
+
     private enum class DocumentSource {
         RECENT,
         ALL
@@ -36,6 +41,7 @@ class HomeViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
     private var documentsJob: Job? = null
+    private var searchDebounceJob: Job? = null
     private var activeSource: DocumentSource = DocumentSource.RECENT
     private var lastAllDocuments: List<PdfDocument> = emptyList()
 
@@ -45,6 +51,7 @@ class HomeViewModel @Inject constructor(
 
     fun loadRecentDocuments() {
         activeSource = DocumentSource.RECENT
+        searchDebounceJob?.cancel()
         documentsJob?.cancel()
         documentsJob = viewModelScope.launch {
             _uiState.value = HomeUiState.Loading
@@ -70,12 +77,13 @@ class HomeViewModel @Inject constructor(
      */
     fun loadAllPdfFiles() {
         activeSource = DocumentSource.ALL
+        searchDebounceJob?.cancel()
         documentsJob?.cancel()
         documentsJob = viewModelScope.launch {
             _uiState.value = HomeUiState.Loading
 
-            val scannedDocuments = runCatching { fileScanner.scanForPdfFiles() }
-                .getOrElse { emptyList() }
+            val scanResult = runCatching { fileScanner.scanForPdfFiles() }
+            val scannedDocuments = scanResult.getOrElse { emptyList() }
 
             pdfRepository.getRecentDocuments(100)
                 .catch { emit(emptyList()) }
@@ -87,7 +95,12 @@ class HomeViewModel @Inject constructor(
                 }
                 .collect { documents ->
                     lastAllDocuments = documents
-                    _uiState.value = if (documents.isEmpty()) {
+                    _uiState.value = if (documents.isEmpty() && scanResult.isFailure) {
+                        HomeUiState.Error(
+                            scanResult.exceptionOrNull()?.message
+                                ?: "Unable to scan storage for PDF files."
+                        )
+                    } else if (documents.isEmpty()) {
                         HomeUiState.Empty
                     } else {
                         HomeUiState.Success(documents)
@@ -97,19 +110,30 @@ class HomeViewModel @Inject constructor(
     }
 
     fun onSearchQueryChange(query: String) {
-        _searchQuery.value = query
+        val normalizedQuery = query.trimStart()
+        _searchQuery.value = normalizedQuery
+        searchDebounceJob?.cancel()
 
-        if (query.isBlank()) {
+        if (normalizedQuery.isBlank()) {
             if (activeSource == DocumentSource.ALL) {
-                loadAllPdfFiles()
+                if (lastAllDocuments.isEmpty()) {
+                    loadAllPdfFiles()
+                } else {
+                    _uiState.value = HomeUiState.Success(lastAllDocuments)
+                }
             } else {
                 loadRecentDocuments()
             }
         } else {
             if (activeSource == DocumentSource.ALL) {
-                filterAllDocuments(query)
+                filterAllDocuments(normalizedQuery)
             } else {
-                searchDocuments(query)
+                searchDebounceJob = viewModelScope.launch {
+                    delay(SEARCH_DEBOUNCE_MS)
+                    if (_searchQuery.value == normalizedQuery && activeSource == DocumentSource.RECENT) {
+                        searchDocuments(normalizedQuery)
+                    }
+                }
             }
         }
     }

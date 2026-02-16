@@ -1,0 +1,63 @@
+language: en-US
+early_access: false
+
+reviews:
+  profile: assertive
+  high_level_summary: true
+  review_status: true
+  commit_status: true
+  fail_commit_status: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  suggested_labels: true
+  suggested_reviewers: true
+  sequence_diagrams: true
+  estimate_code_review_effort: true
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT REVIEW"
+  path_filters:
+    - "app/**"
+    - ".github/**"
+    - "gradle/**"
+    - "*.kts"
+    - "*.md"
+    - "!**/build/**"
+    - "!.gradle/**"
+    - "!**/*.iml"
+    - "!**/*.apk"
+    - "!**/*.aab"
+    - "!**/*.dex"
+    - "!**/generated/**"
+  path_instructions:
+    - path: "app/src/main/**/*.kt"
+      instructions: |
+        Review as production Android code. Prioritize thread-safety, lifecycle correctness,
+        permission/privacy compliance, memory safety for bitmaps and caches, and robust
+        error handling for storage/content URI operations.
+    - path: "app/src/test/**/*.kt"
+      instructions: |
+        Ensure tests are deterministic, isolated, and validate behavior rather than implementation details.
+        Highlight missing edge cases in parsing, permission handling, and navigation encoding/decoding.
+    - path: "app/build.gradle.kts"
+      instructions: |
+        Enforce release-grade build settings: strict lint, reproducible signing configuration,
+        and safe dependency/version management.
+    - path: ".github/workflows/**/*.yml"
+      instructions: |
+        Focus on CI security (least privilege permissions), deterministic checks, artifact hygiene,
+        and practical PR gating quality.
+  tools:
+    gitleaks:
+      enabled: true
+    github-checks:
+      enabled: true
+      timeout_ms: 120000
+
+chat:
+  auto_reply: true

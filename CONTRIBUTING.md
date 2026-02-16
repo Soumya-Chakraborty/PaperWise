@@ -14,6 +14,11 @@
    - `./gradlew --no-daemon :app:assembleRelease`
 4. Open a pull request using the template.
 
+## CodeRabbit Reviews
+- This repository includes a production-focused CodeRabbit config: `.coderabbit.yaml`.
+- For automated PR reviews, install/enable the CodeRabbit GitHub App on this repository.
+- Use PR title keyword `WIP` to temporarily skip auto review for draft work.
+
 ## Release Build Notes
 - Release signing is optional by default and enabled only when all of the following are provided:
   - `PAPERWISE_RELEASE_STORE_FILE`

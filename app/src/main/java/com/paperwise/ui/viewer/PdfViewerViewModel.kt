@@ -13,10 +13,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
@@ -306,7 +307,7 @@ class PdfViewerViewModel @Inject constructor(
         loadDocumentJob?.cancel()
         loadPageJob?.cancel()
         bookmarksJob?.cancel()
-        runBlocking(Dispatchers.IO) {
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             kotlin.runCatching {
                 pdfRepository.getPdfRenderer().closeDocument()
                 pdfRepository.getPageCache().clear()

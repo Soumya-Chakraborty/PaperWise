@@ -1,6 +1,8 @@
 package com.paperwise.ui.viewer
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.provider.OpenableColumns
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import androidx.core.net.toUri
@@ -28,6 +30,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -41,6 +44,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
+import java.io.File
 import kotlin.math.roundToInt
 
 private data class AcrobatChrome(
@@ -72,9 +76,11 @@ private enum class DisplayMode {
 @Composable
 fun PdfViewerScreen(
     filePath: String,
+    initialDocumentName: String? = null,
     onNavigateBack: () -> Unit,
     viewModel: PdfViewerViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val isDarkTheme = isSystemInDarkTheme()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentPage by viewModel.currentPage.collectAsStateWithLifecycle()
@@ -142,17 +148,9 @@ fun PdfViewerScreen(
             }
         }
     }
-    val documentLabel = remember(filePath) {
-        val raw = runCatching { filePath.toUri().lastPathSegment }.getOrNull()
-            ?: filePath.substringAfterLast('/')
-        val decoded = runCatching {
-            URLDecoder.decode(raw ?: "", StandardCharsets.UTF_8.name())
-        }.getOrDefault(raw ?: "")
-
-        decoded
-            .substringAfterLast('/')
-            .substringAfterLast(':')
-            .ifBlank { "Document" }
+    val documentLabel = remember(filePath, initialDocumentName, context) {
+        initialDocumentName?.takeIf { it.isNotBlank() }
+            ?: resolveDocumentLabel(context, filePath)
     }
     
     LaunchedEffect(filePath) {
@@ -581,6 +579,43 @@ fun PdfViewerScreen(
             }
         }
     }
+}
+
+private fun resolveDocumentLabel(context: Context, filePath: String): String {
+    if (filePath.startsWith("content://")) {
+        val uri = filePath.toUri()
+        val nameFromProvider = runCatching {
+            context.contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                val nameColumn = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (nameColumn != -1 && cursor.moveToFirst()) cursor.getString(nameColumn) else null
+            }
+        }.getOrNull()
+
+        if (!nameFromProvider.isNullOrBlank()) {
+            return nameFromProvider
+        }
+    }
+
+    val normalizedPath = if (filePath.startsWith("file://")) {
+        filePath.toUri().path.orEmpty()
+    } else {
+        filePath
+    }
+    val raw = File(normalizedPath).name.ifBlank { filePath.substringAfterLast('/') }
+    val decoded = runCatching {
+        URLDecoder.decode(raw, StandardCharsets.UTF_8.name())
+    }.getOrDefault(raw)
+
+    return decoded
+        .substringAfterLast('/')
+        .substringAfterLast(':')
+        .ifBlank { "Document" }
 }
 
 @Composable

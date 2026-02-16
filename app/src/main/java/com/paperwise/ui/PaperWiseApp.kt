@@ -25,9 +25,10 @@ fun PaperWiseApp() {
     ) {
         composable(Screen.Home.route) {
             HomeScreen(
-                onNavigateToPdf = { filePath ->
+                onNavigateToPdf = { filePath, documentName ->
                     val encodedPath = NavigationCodec.encodeFilePath(filePath)
-                    navController.navigate(Screen.PdfViewer.createRoute(encodedPath))
+                    val encodedName = NavigationCodec.encodeValue(documentName ?: "")
+                    navController.navigate(Screen.PdfViewer.createRoute(encodedPath, encodedName))
                 },
                 onNavigateToSettings = {
                     navController.navigate(Screen.Settings.route)
@@ -38,14 +39,21 @@ fun PaperWiseApp() {
         composable(
             route = Screen.PdfViewer.route,
             arguments = listOf(
-                navArgument("filePath") { type = NavType.StringType }
+                navArgument("filePath") { type = NavType.StringType },
+                navArgument("documentName") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                }
             )
         ) { backStackEntry ->
             val encodedPath = backStackEntry.arguments?.getString("filePath") ?: ""
+            val encodedName = backStackEntry.arguments?.getString("documentName") ?: ""
             val filePath = NavigationCodec.decodeFilePath(encodedPath)
+            val documentName = NavigationCodec.decodeValue(encodedName).ifBlank { null }
             
             PdfViewerScreen(
                 filePath = filePath,
+                initialDocumentName = documentName,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

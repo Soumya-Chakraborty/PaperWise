@@ -21,4 +21,20 @@ class NavigationCodecTest {
         val invalid = "not_base64:%%%/"
         assertEquals(invalid, NavigationCodec.decodeFilePath(invalid))
     }
+
+    @Test
+    fun `encodes and decodes arbitrary navigation values`() {
+        val value = "Annual Report 2026 (Final)#v2.pdf"
+
+        val encoded = NavigationCodec.encodeValue(value)
+        val decoded = NavigationCodec.decodeValue(encoded)
+
+        assertNotEquals(value, encoded)
+        assertEquals(value, decoded)
+    }
+
+    @Test
+    fun `preserves empty string when encoding generic values`() {
+        assertEquals("", NavigationCodec.decodeValue(NavigationCodec.encodeValue("")))
+    }
 }

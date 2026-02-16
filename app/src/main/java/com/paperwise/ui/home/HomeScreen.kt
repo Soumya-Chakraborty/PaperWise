@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.Settings
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -21,8 +23,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -44,18 +50,23 @@ private val AcrobatTopBarLight = Color(0xFF2A2A2A)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun HomeScreen(
-    onNavigateToPdf: (String) -> Unit,
+    onNavigateToPdf: (String, String?) -> Unit,
     onNavigateToSettings: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val requiresLegacyStoragePermission = Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val requiresAllFilesAccess = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+    val requiresLegacyStoragePermission = Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q
     val isDarkTheme = isSystemInDarkTheme()
     val topBarColor = if (isDarkTheme) AcrobatTopBar else AcrobatTopBarLight
     val workspaceColor = if (isDarkTheme) AcrobatWorkspaceDark else AcrobatWorkspace
     var hasRequestedPermission by rememberSaveable { mutableStateOf(false) }
+    var hasAllFilesAccess by rememberSaveable {
+        mutableStateOf(!requiresAllFilesAccess || Environment.isExternalStorageManager())
+    }
 
     val permissionState = rememberPermissionState(
         permission = Manifest.permission.READ_EXTERNAL_STORAGE,
@@ -69,10 +80,30 @@ fun HomeScreen(
             }
         }
     )
+
+    DisposableEffect(lifecycleOwner, requiresAllFilesAccess) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && requiresAllFilesAccess) {
+                hasAllFilesAccess = Environment.isExternalStorageManager()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
     
     // Bootstrap loading/permission once and react to grant state changes.
-    LaunchedEffect(requiresLegacyStoragePermission, permissionState.status.isGranted, hasRequestedPermission) {
-        if (requiresLegacyStoragePermission && !permissionState.status.isGranted) {
+    LaunchedEffect(
+        requiresAllFilesAccess,
+        hasAllFilesAccess,
+        requiresLegacyStoragePermission,
+        permissionState.status.isGranted,
+        hasRequestedPermission
+    ) {
+        if (requiresAllFilesAccess && !hasAllFilesAccess) {
+            viewModel.loadRecentDocuments()
+        } else if (requiresLegacyStoragePermission && !permissionState.status.isGranted) {
             if (!hasRequestedPermission) {
                 hasRequestedPermission = true
                 permissionState.launchPermissionRequest()
@@ -97,10 +128,19 @@ fun HomeScreen(
             } catch (_: SecurityException) {
                 // Some providers do not grant persistable permissions.
             }
-            onNavigateToPdf(uri.toString())
+            onNavigateToPdf(uri.toString(), resolveDisplayName(context, uri))
         }
     }
     val openFilePicker = { filePickerLauncher.launch(arrayOf("application/pdf")) }
+    val openAllFilesAccessSettings = {
+        val intent = Intent(
+            "android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION",
+            "package:${context.packageName}".toUri()
+        )
+        val fallbackIntent = Intent("android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION")
+        runCatching { context.startActivity(intent) }
+            .onFailure { context.startActivity(fallbackIntent) }
+    }
     
     Scaffold(
         containerColor = workspaceColor,
@@ -128,10 +168,12 @@ fun HomeScreen(
                 actions = {
                     IconButton(
                         onClick = {
-                            if (!requiresLegacyStoragePermission || permissionState.status.isGranted) {
-                                viewModel.loadAllPdfFiles()
-                            } else {
-                                permissionState.launchPermissionRequest()
+                            when {
+                                requiresAllFilesAccess && !hasAllFilesAccess -> openAllFilesAccessSettings()
+                                !requiresLegacyStoragePermission || permissionState.status.isGranted -> {
+                                    viewModel.loadAllPdfFiles()
+                                }
+                                else -> permissionState.launchPermissionRequest()
                             }
                         }
                     ) {
@@ -147,10 +189,12 @@ fun HomeScreen(
             ExtendedFloatingActionButton(
                 modifier = Modifier.navigationBarsPadding(),
                 onClick = {
-                    if (!requiresLegacyStoragePermission || permissionState.status.isGranted) {
-                        openFilePicker()
-                    } else {
-                        permissionState.launchPermissionRequest()
+                    when {
+                        requiresAllFilesAccess && !hasAllFilesAccess -> openAllFilesAccessSettings()
+                        !requiresLegacyStoragePermission || permissionState.status.isGranted -> {
+                            openFilePicker()
+                        }
+                        else -> permissionState.launchPermissionRequest()
                     }
                 }
             ) {
@@ -174,15 +218,45 @@ fun HomeScreen(
                     .padding(16.dp)
             )
             
-            // Permission request UI
-            if (requiresLegacyStoragePermission && !permissionState.status.isGranted) {
+            val hasStorageAccess = when {
+                requiresAllFilesAccess -> hasAllFilesAccess
+                requiresLegacyStoragePermission -> permissionState.status.isGranted
+                else -> true
+            }
+
+            if (!hasStorageAccess) {
                 PermissionRequestCard(
-                    onRequestPermission = { permissionState.launchPermissionRequest() },
-                    onOpenSettings = {
-                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.fromParts("package", context.packageName, null)
+                    title = if (requiresAllFilesAccess) {
+                        "All Files Access Required"
+                    } else {
+                        "Storage Permission Required"
+                    },
+                    description = if (requiresAllFilesAccess) {
+                        "Allow all files access to scan PDFs across device storage, or open PDFs manually."
+                    } else {
+                        "Allow storage permission to scan PDFs on your device, or pick files manually."
+                    },
+                    actionLabel = if (requiresAllFilesAccess || permissionState.status.shouldShowRationale) {
+                        "Open Settings"
+                    } else {
+                        "Grant Permission"
+                    },
+                    onRequestPermission = {
+                        if (requiresAllFilesAccess) {
+                            openAllFilesAccessSettings()
+                        } else {
+                            permissionState.launchPermissionRequest()
                         }
-                        context.startActivity(intent)
+                    },
+                    onOpenSettings = {
+                        if (requiresAllFilesAccess) {
+                            openAllFilesAccessSettings()
+                        } else {
+                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.fromParts("package", context.packageName, null)
+                            }
+                            context.startActivity(intent)
+                        }
                     },
                     shouldShowRationale = permissionState.status.shouldShowRationale
                 )
@@ -256,6 +330,9 @@ private fun SearchBar(
 
 @Composable
 private fun PermissionRequestCard(
+    title: String,
+    description: String,
+    actionLabel: String,
     onRequestPermission: () -> Unit,
     onOpenSettings: () -> Unit,
     shouldShowRationale: Boolean
@@ -277,12 +354,12 @@ private fun PermissionRequestCard(
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Storage Permission Required",
+                text = title,
                 style = MaterialTheme.typography.titleLarge
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Allow storage permission to scan PDFs on your device, or pick files manually.",
+                text = description,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -290,7 +367,7 @@ private fun PermissionRequestCard(
             Button(
                 onClick = if (shouldShowRationale) onOpenSettings else onRequestPermission
             ) {
-                Text(if (shouldShowRationale) "Open Settings" else "Grant Permission")
+                Text(actionLabel)
             }
         }
     }
@@ -382,7 +459,7 @@ private fun ErrorState(
 @Composable
 private fun DocumentGrid(
     documents: List<PdfDocument>,
-    onDocumentClick: (String) -> Unit,
+    onDocumentClick: (String, String?) -> Unit,
     onDeleteDocument: (String) -> Unit
 ) {
     LazyVerticalGrid(
@@ -394,11 +471,26 @@ private fun DocumentGrid(
         items(documents, key = { it.filePath }) { document ->
             DocumentCard(
                 document = document,
-                onClick = { onDocumentClick(document.filePath) },
+                onClick = { onDocumentClick(document.filePath, document.fileName) },
                 onDelete = { onDeleteDocument(document.filePath) }
             )
         }
     }
+}
+
+private fun resolveDisplayName(context: android.content.Context, uri: Uri): String? {
+    return runCatching {
+        context.contentResolver.query(
+            uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            val nameColumn = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameColumn != -1 && cursor.moveToFirst()) cursor.getString(nameColumn) else null
+        }
+    }.getOrNull()?.takeIf { it.isNotBlank() }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
