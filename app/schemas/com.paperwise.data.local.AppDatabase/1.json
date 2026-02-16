@@ -1,0 +1,236 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "4097c1bcf481e057b6bb755371ce1e2a",
+    "entities": [
+      {
+        "tableName": "pdf_documents",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`filePath` TEXT NOT NULL, `fileName` TEXT NOT NULL, `fileSize` INTEGER NOT NULL, `pageCount` INTEGER NOT NULL, `lastOpenedTimestamp` INTEGER NOT NULL, `lastPageRead` INTEGER NOT NULL, `thumbnailPath` TEXT, `addedTimestamp` INTEGER NOT NULL, PRIMARY KEY(`filePath`))",
+        "fields": [
+          {
+            "fieldPath": "filePath",
+            "columnName": "filePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileName",
+            "columnName": "fileName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileSize",
+            "columnName": "fileSize",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pageCount",
+            "columnName": "pageCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastOpenedTimestamp",
+            "columnName": "lastOpenedTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastPageRead",
+            "columnName": "lastPageRead",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "thumbnailPath",
+            "columnName": "thumbnailPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "addedTimestamp",
+            "columnName": "addedTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "filePath"
+          ]
+        }
+      },
+      {
+        "tableName": "bookmarks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `documentPath` TEXT NOT NULL, `pageNumber` INTEGER NOT NULL, `title` TEXT NOT NULL, `createdTimestamp` INTEGER NOT NULL, FOREIGN KEY(`documentPath`) REFERENCES `pdf_documents`(`filePath`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "documentPath",
+            "columnName": "documentPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pageNumber",
+            "columnName": "pageNumber",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdTimestamp",
+            "columnName": "createdTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_bookmarks_documentPath",
+            "unique": false,
+            "columnNames": [
+              "documentPath"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_bookmarks_documentPath` ON `${TABLE_NAME}` (`documentPath`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "pdf_documents",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "documentPath"
+            ],
+            "referencedColumns": [
+              "filePath"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "annotations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `documentPath` TEXT NOT NULL, `pageNumber` INTEGER NOT NULL, `type` TEXT NOT NULL, `color` INTEGER NOT NULL, `coordinates` TEXT NOT NULL, `content` TEXT, `createdTimestamp` INTEGER NOT NULL, `modifiedTimestamp` INTEGER NOT NULL, FOREIGN KEY(`documentPath`) REFERENCES `pdf_documents`(`filePath`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "documentPath",
+            "columnName": "documentPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pageNumber",
+            "columnName": "pageNumber",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "color",
+            "columnName": "color",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coordinates",
+            "columnName": "coordinates",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "content",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdTimestamp",
+            "columnName": "createdTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modifiedTimestamp",
+            "columnName": "modifiedTimestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_annotations_documentPath",
+            "unique": false,
+            "columnNames": [
+              "documentPath"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_annotations_documentPath` ON `${TABLE_NAME}` (`documentPath`)"
+          },
+          {
+            "name": "index_annotations_pageNumber",
+            "unique": false,
+            "columnNames": [
+              "pageNumber"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_annotations_pageNumber` ON `${TABLE_NAME}` (`pageNumber`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "pdf_documents",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "documentPath"
+            ],
+            "referencedColumns": [
+              "filePath"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4097c1bcf481e057b6bb755371ce1e2a')"
+    ]
+  }
+}
