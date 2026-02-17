@@ -14,7 +14,7 @@ room = "2.7.0-beta01"
 
 # Hilt
 hilt = "2.51"
-hiltNavigationCompose = "1.2.0"
+hiltNavigationCompose = "1.3.0"
 
 # Navigation
 navigationCompose = "2.8.5"
