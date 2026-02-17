@@ -17,7 +17,7 @@ hilt = "2.51"
 hiltNavigationCompose = "1.2.0"
 
 # Navigation
-navigationCompose = "2.8.5"
+navigationCompose = "2.9.7"
 
 # Coroutines
 coroutines = "1.8.0"
