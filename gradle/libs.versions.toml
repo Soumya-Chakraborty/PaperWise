@@ -20,7 +20,7 @@ hiltNavigationCompose = "1.2.0"
 navigationCompose = "2.8.5"
 
 # Coroutines
-coroutines = "1.8.0"
+coroutines = "1.10.2"
 
 # MuPDF
 mupdf = "1.27.1"
