@@ -13,7 +13,7 @@ composeBom = "2026.02.00"
 room = "2.7.0-beta01"
 
 # Hilt
-hilt = "2.51"
+hilt = "2.59.1"
 hiltNavigationCompose = "1.2.0"
 
 # Navigation
